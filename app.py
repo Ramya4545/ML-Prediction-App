@@ -1,47 +1,107 @@
+
+
+
 import streamlit as st
-import pickle
 import pandas as pd
+import joblib
 
-# 1. Load the model AND both encoders (done once when the app starts)
-with open("model.pkl", "rb") as f:
-    model = pickle.load(f)
 
-with open("city_encoder.pkl", "rb") as f:
-    city_encoder = pickle.load(f)
+# --------------------------------------------------
+# 1. Load Model and Encoders
+# --------------------------------------------------
 
-with open("membership_encoder.pkl", "rb") as f:
-    membership_encoder = pickle.load(f)
+model = joblib.load("titanic_model.pkl")
 
-# 2. Page title
-st.title("Customer Purchase Predictor")
-st.write("Fill in the details and click Predict.")
+sex_encoder = joblib.load("sex_encoder.pkl")
 
-# 3. Numeric inputs -> typed directly as numbers
-age = st.number_input("Age", min_value=18, max_value=100, value=30)
-income = st.number_input("Income", min_value=0, value=50000)
+embarked_encoder = joblib.load("embarked_encoder.pkl")
 
-# 4. Text inputs -> dropdowns filled from each encoder's known categories.
-#    Using .classes_ means the user can ONLY pick values the model has seen.
-city = st.selectbox("City", city_encoder.classes_)
-membership = st.selectbox("Membership", membership_encoder.classes_)
 
-# 5. Predict button
-if st.button("Predict"):
-    # 5a. Translate the chosen words into numbers using the SAME saved encoders
-    city_num = city_encoder.transform([city])[0]
-    membership_num = membership_encoder.transform([membership])[0]
+# --------------------------------------------------
+# 2. Streamlit App
+# --------------------------------------------------
 
-    # 5b. Build one row in the SAME column order used during training
-    row = pd.DataFrame(
-        [[age, income, city_num, membership_num]],
-        columns=["age", "income", "city_encoded", "membership_encoded"]
-    )
+st.title("🚢 Titanic Survival Prediction")
 
-    # 5c. Predict, and also show the probability
-    result = model.predict(row)[0]
-    proba = model.predict_proba(row)[0][1]
+st.write("Enter passenger details to predict survival.")
 
-    if result == 1:
-        st.success(f"Likely to purchase  (probability {proba:.0%})")
+
+# --------------------------------------------------
+# 3. User Input
+# --------------------------------------------------
+
+pclass = st.selectbox(
+    "Passenger Class",
+    [1, 2, 3]
+)
+
+sex = st.selectbox(
+    "Sex",
+    sex_encoder.classes_
+)
+
+age = st.number_input(
+    "Age",
+    min_value=0.0,
+    max_value=100.0,
+    value=25.0
+)
+
+sibsp = st.number_input(
+    "Number of Siblings/Spouses",
+    min_value=0,
+    max_value=10,
+    value=0
+)
+
+parch = st.number_input(
+    "Number of Parents/Children",
+    min_value=0,
+    max_value=10,
+    value=0
+)
+
+fare = st.number_input(
+    "Fare",
+    min_value=0.0,
+    value=32.0
+)
+
+embarked = st.selectbox(
+    "Embarked",
+    embarked_encoder.classes_
+)
+
+
+# --------------------------------------------------
+# 4. Prediction
+# --------------------------------------------------
+
+if st.button("Predict Survival"):
+
+    # Convert Sex into number
+    sex_encoded = sex_encoder.transform([sex])[0]
+
+    # Convert Embarked into number
+    embarked_encoded = embarked_encoder.transform([embarked])[0]
+
+    # Create input DataFrame
+    input_data = pd.DataFrame({
+        "Pclass": [pclass],
+        "Sex": [sex_encoded],
+        "Age": [age],
+        "SibSp": [sibsp],
+        "Parch": [parch],
+        "Fare": [fare],
+        "Embarked": [embarked_encoded]
+    })
+
+    # Predict
+    prediction = model.predict(input_data)[0]
+
+    # Display result
+    if prediction == 1:
+        st.success("🎉 Passenger is predicted to SURVIVE.")
+
     else:
-        st.info(f"Unlikely to purchase  (probability {proba:.0%})")
+        st.error("❌ Passenger is predicted NOT to survive.")
